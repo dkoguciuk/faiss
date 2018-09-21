@@ -1,37 +1,59 @@
+###############################################################################
+# Info
+###############################################################################
+
 FROM nvidia/cuda:8.0-devel-ubuntu16.04
 MAINTAINER Pierre Letessier <pletessier@ina.fr>
 
-RUN apt-get update -y
-RUN apt-get install -y libopenblas-dev python-numpy python-dev swig git python-pip wget
+###############################################################################
+# Install dependencies
+###############################################################################
 
-RUN pip install matplotlib
+RUN apt-get update -y
+RUN apt-get install -y libopenblas-dev python-numpy python-dev swig git python-pip curl
+RUN pip install --upgrade pip
+RUN pip2 install matplotlib
+
+###############################################################################
+# Copy repo files
+###############################################################################
 
 COPY . /opt/faiss
 
-WORKDIR /opt/faiss
+###############################################################################
+# ENV setup
+###############################################################################
 
 ENV BLASLDFLAGS /usr/lib/libopenblas.so.0
 
-RUN mv example_makefiles/makefile.inc.Linux ./makefile.inc
+###############################################################################
+# make cpu
+###############################################################################
 
-RUN make tests/test_blas -j $(nproc) && \
-    make -j $(nproc) && \
-    make demos/demo_sift1M -j $(nproc) && \
-    make py
+WORKDIR /opt/faiss
 
-RUN cd gpu && \
+RUN ./configure && \
     make -j $(nproc) && \
-    make test/demo_ivfpq_indexing_gpu && \
-    make py
+    make test && \
+    make install
+
+###############################################################################
+# make gpu
+###############################################################################
+
+RUN make -C gpu -j $(nproc) && \
+    make -C gpu/test
+
+###############################################################################
+# make python interface
+###############################################################################
+
+RUN make -C python gpu && \
+    make -C python build && \
+    make -C python install
+
+###############################################################################
+# ENV setup
+###############################################################################
 
 ENV PYTHONPATH $PYTHONPATH:/opt/faiss
-
-# RUN ./tests/test_blas && \
-#     tests/demo_ivfpq_indexing
-
-
-# RUN wget ftp://ftp.irisa.fr/local/texmex/corpus/sift.tar.gz && \
-#     tar xf sift.tar.gz && \
-#     mv sift sift1M
-
-# RUN tests/demo_sift1M
